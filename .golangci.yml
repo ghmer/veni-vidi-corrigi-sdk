@@ -1,0 +1,58 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/ghmer/veni-vidi-corrigi-sdk
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - contextcheck
+    - copyloopvar
+    - durationcheck
+    - errname
+    - errorlint
+    - goconst
+    - gocritic
+    - misspell
+    - noctx
+    - prealloc
+    - revive
+    - unconvert
+    - unparam
+    - whitespace
+    - nolintlint
+    - modernize
+    - gosec
+    - wastedassign
+    - thelper
+    - usestdlibvars
+    - sloglint
+  settings:
+    goconst:
+      min-len: 3
+      min-occurrences: 4
+    govet:
+      enable:
+        - unusedwrite
+    revive:
+      severity: warning
+  exclusions:
+    generated: lax
+    rules:
+      - path: _test\.go
+        linters:
+          - gocritic
+          - errname
+          - goconst
+          - errorlint
+          - contextcheck
