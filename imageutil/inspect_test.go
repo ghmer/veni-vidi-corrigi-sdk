@@ -3,6 +3,7 @@ package imageutil
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -38,6 +39,96 @@ func TestInfoReportsExifOrientation(t *testing.T) {
 		t.Fatal("expected EXIF orientation note")
 	}
 	errContains(t, errors.New(info.Notes[0]), "orientation 6")
+}
+
+func TestInfoReportsCorrectedDimensionsPerOrientation(t *testing.T) {
+	s := newTestService(t)
+	// Stored 3x2 JPEG: orientations 5-8 swap the axes to the corrected
+	// 2x3 canonical frame, orientations 1-4 keep 3x2.
+	for orient := 1; orient <= 8; orient++ {
+		src := Input{Data: jpegWithExif(t, solidPage(3, 2), uint16(orient)), Name: "phone"}
+		info, err := s.Info(context.Background(), src)
+		if err != nil {
+			t.Fatalf("orientation %d: Info: %v", orient, err)
+		}
+		if info.Orientation != orient {
+			t.Fatalf("orientation %d: reported %d", orient, info.Orientation)
+		}
+		wantW, wantH := 3, 2
+		if orient >= 5 {
+			wantW, wantH = 2, 3
+		}
+		if info.Width != wantW || info.Height != wantH {
+			t.Fatalf("orientation %d: dims %dx%d, want %dx%d",
+				orient, info.Width, info.Height, wantW, wantH)
+		}
+		if info.Data != nil {
+			t.Fatalf("orientation %d: Info must not return image bytes", orient)
+		}
+	}
+}
+
+func TestInfoPNGReportsOrientationOneUnswapped(t *testing.T) {
+	s := newTestService(t)
+
+	info, err := s.Info(context.Background(), pngInput("scan1.png", solidPage(3, 2)))
+	if err != nil {
+		t.Fatalf("Info: %v", err)
+	}
+	if info.Orientation != 1 {
+		t.Fatalf("orientation = %d, want 1 for PNG", info.Orientation)
+	}
+	if info.Width != 3 || info.Height != 2 {
+		t.Fatalf("dims = %dx%d, want unswapped 3x2", info.Width, info.Height)
+	}
+}
+
+func TestInfoReportsZeroForMalformedExif(t *testing.T) {
+	s := newTestService(t)
+	// 12 lies outside the defined 1..8 range: the EXIF block exists but
+	// is unreadable, so the stored dimensions stay untouched.
+	src := Input{Data: jpegWithExif(t, solidPage(3, 2), 12), Name: "broken"}
+
+	info, err := s.Info(context.Background(), src)
+	if err != nil {
+		t.Fatalf("Info: %v", err)
+	}
+	if info.Orientation != 0 {
+		t.Fatalf("orientation = %d, want 0 for malformed EXIF", info.Orientation)
+	}
+	if info.Width != 3 || info.Height != 2 {
+		t.Fatalf("dims = %dx%d, want stored 3x2", info.Width, info.Height)
+	}
+	errContains(t, errors.New(joinNotes(info)), "unreadable")
+}
+
+func TestInfoOversizedJPEGReportsCorrectedDimsWithoutResize(t *testing.T) {
+	s := newTestService(t)
+	// 5000x3000 stored, orientation 6: the corrected frame is 3000x5000.
+	// hardMaxSide applies to re-encoding operations only — Info reports
+	// the metadata without any resize.
+	src := Input{Data: jpegWithExif(t, solidPage(5000, 3000), 6), Name: "a4"}
+
+	info, err := s.Info(context.Background(), src)
+	if err != nil {
+		t.Fatalf("Info: %v", err)
+	}
+	if info.Width != 3000 || info.Height != 5000 {
+		t.Fatalf("dims = %dx%d, want corrected 3000x5000", info.Width, info.Height)
+	}
+	if info.Orientation != 6 {
+		t.Fatalf("orientation = %d, want 6", info.Orientation)
+	}
+	if info.Data != nil {
+		t.Fatal("Info must not return image bytes")
+	}
+	notes := joinNotes(info)
+	if strings.Contains(notes, "capped") || strings.Contains(notes, "resized") {
+		t.Fatalf("notes = %q, want no resize or cap hints", notes)
+	}
+	if !strings.Contains(notes, "exceeds MaxSide") {
+		t.Fatalf("notes = %q, want the exceeds-MaxSide hint", notes)
+	}
 }
 
 func TestInfoRejectsUndecodableData(t *testing.T) {

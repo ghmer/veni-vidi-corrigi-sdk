@@ -27,8 +27,18 @@ type Result struct {
 	// also serves as the Input.Name for chained follow-up calls.
 	ID string `json:"id"`
 	// Width and Height are the pixel dimensions of the transformed image.
+	// For Info, which reports metadata only, they are the EXIF-corrected
+	// canonical dimensions of the source (from v0.1.1 on): the stored
+	// values transposed for orientations 5-8, matching what every
+	// decoding operation reports.
 	Width  int `json:"width"`
 	Height int `json:"height"`
+	// Orientation is the numeric EXIF orientation of the source as
+	// reported by Info: 1..8 for a readable JPEG EXIF block, 1 for PNG
+	// (PNG carries no EXIF) and 0 when a JPEG EXIF block exists but is
+	// unreadable. Operation results leave it unset at 0; their pixels
+	// are already EXIF-corrected.
+	Orientation int `json:"orientation,omitempty"`
 	// Format is the canonical encoding ("png" or "jpeg").
 	Format string `json:"format"`
 	// Size is len(Data).

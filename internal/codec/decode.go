@@ -69,6 +69,17 @@ func OrientationOf(data []byte) int {
 	return jpegOrientation(data)
 }
 
+// CorrectedDimensions reports the pixel dimensions of the EXIF-corrected
+// canonical frame: stored dimensions transposed for the axis-swapping
+// orientations 5-8, unchanged for all other values (including 0,
+// unreadable). It never decodes pixel data.
+func CorrectedDimensions(width, height, orientation int) (int, int) {
+	if orientation >= 5 && orientation <= 8 {
+		return height, width
+	}
+	return width, height
+}
+
 // jpegOrientation returns 1..8 for a readable EXIF orientation and 0 when
 // the EXIF block exists but is malformed.
 func jpegOrientation(data []byte) int {

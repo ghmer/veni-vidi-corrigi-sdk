@@ -16,6 +16,11 @@ import (
 // Info reports the basic data of an input without producing a new image:
 // pixel dimensions, detected format, EXIF orientation and usage hints for
 // the next useful call. Detection happens against the content bytes.
+//
+// From v0.1.1 on, Width and Height are the EXIF-corrected canonical
+// dimensions (stored values transposed for orientations 5-8) and
+// Orientation carries the numeric EXIF orientation: 1..8 for a readable
+// JPEG EXIF block, 1 for PNG and 0 when the EXIF block is unreadable.
 func (s *Service) Info(ctx context.Context, src Input) (Result, error) {
 	if err := checkCtx(ctx); err != nil {
 		return Result{}, err
@@ -27,12 +32,14 @@ func (s *Service) Info(ctx context.Context, src Input) (Result, error) {
 	if err := checkCtx(ctx); err != nil {
 		return Result{}, err
 	}
-	width, height, format, err := codec.DecodeConfig(data)
+	storedW, storedH, format, err := codec.DecodeConfig(data)
 	if err != nil {
 		return Result{}, err
 	}
+	orientation := codec.OrientationOf(data)
+	width, height := codec.CorrectedDimensions(storedW, storedH, orientation)
 	notes := []string{}
-	if note := codec.DescribeOrientation(codec.OrientationOf(data)); note != "" {
+	if note := codec.DescribeOrientation(orientation); note != "" {
 		notes = append(notes, note)
 	}
 	if max(width, height) > s.set.maxSide {
@@ -42,14 +49,16 @@ func (s *Service) Info(ctx context.Context, src Input) (Result, error) {
 	}
 	id := seedID(src.Name)
 	s.log.InfoContext(ctx, "source inspected",
-		"src", id, "format", format, "width", width, "height", height)
+		"src", id, "format", format, "width", width, "height", height,
+		"orientation", orientation)
 	return Result{
-		ID:     id,
-		Width:  width,
-		Height: height,
-		Format: format,
-		Size:   int64(len(data)),
-		Notes:  notes,
+		ID:          id,
+		Width:       width,
+		Height:      height,
+		Format:      format,
+		Size:        int64(len(data)),
+		Orientation: orientation,
+		Notes:       notes,
 	}, nil
 }
 

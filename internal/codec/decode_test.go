@@ -80,3 +80,19 @@ func TestOrientationOfReadsNonJpegAsOne(t *testing.T) {
 		t.Fatalf("png orientation = %d, want 1", got)
 	}
 }
+
+func TestCorrectedDimensions(t *testing.T) {
+	for orient := 1; orient <= 8; orient++ {
+		w, h := CorrectedDimensions(3, 2, orient)
+		wantW, wantH := 3, 2
+		if orient >= 5 {
+			wantW, wantH = 2, 3
+		}
+		if w != wantW || h != wantH {
+			t.Fatalf("orientation %d: %dx%d, want %dx%d", orient, w, h, wantW, wantH)
+		}
+	}
+	if w, h := CorrectedDimensions(3, 2, 0); w != 3 || h != 2 {
+		t.Fatalf("orientation 0: %dx%d, want stored 3x2", w, h)
+	}
+}
